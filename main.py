@@ -1,78 +1,58 @@
-import discord, asyncio, os, json, io, aiohttp, re, time
+import discord
 from discord.ext import commands
-from discord.ui import Select, View
-from PIL import Image, ImageDraw, ImageFont, ImageOps
 
+# إعدادات البوت (تأكد من تفعيل Message Content في الديفلوبر بورتال)
 intents = discord.Intents.default()
 intents.message_content = True
-intents.members = True
-bot = commands.Bot(command_prefix="-", intents=intents, help_command=None)
+bot = commands.Bot(command_prefix="-", intents=intents)
 
-# --- نظام النقاط (Database) ---
-def load_data():
-    if not os.path.exists('data.json'): return {}
-    with open('data.json', 'r') as f: return json.load(f)
-
-def save_data(data):
-    with open('data.json', 'w') as f: json.dump(data, f, indent=4)
-
-def update_points(user_id, amount):
-    data = load_data()
-    uid = str(user_id)
-    if uid not in data: data[uid] = {"total": 0}
-    data[uid]["total"] += amount
-    save_data(data)
-
-# --- الـ Dashboard (نظام التيكت التفاعلي) ---
-class DashboardSelect(Select):
+# القائمة التفاعلية للاعدادات
+class SettingsSelect(discord.ui.Select):
     def __init__(self):
         options = [
-            discord.SelectOption(label="Roulette Settings", value="set"),
-            discord.SelectOption(label="System Status", value="ping")
+            discord.SelectOption(label="Roulette Setup", description="تعديل إعدادات عجلة الروليت", emoji="🎡"),
+            discord.SelectOption(label="Game Mechanics", description="التحكم في قوانين اللعبة والخصائص", emoji="⚔️"),
+            discord.SelectOption(label="System & Ping", description="فحص سرعة استجابة البوت", emoji="📶")
         ]
-        super().__init__(placeholder="Select an option...", options=options)
-    async def callback(self, interaction: discord.Interaction):
-        if self.values[0] == "ping":
-            await interaction.response.send_message(f"Latency: {round(bot.latency * 1000)}ms", ephemeral=True)
-        else:
-            await interaction.response.send_message("Commands: -روليت, -توقف, -نقاط", ephemeral=True)
+        super().__init__(placeholder="Select a category to configure...", options=options)
 
-class DashboardView(View):
+    async def callback(self, interaction: discord.Interaction):
+        if self.values[0] == "Roulette Setup":
+            embed = discord.Embed(title="🎡 Roulette Setup", color=discord.Color.blue())
+            embed.description = (
+                "**-روم_الاعدادات**\n*تحديد الروم المخصصة لإدارة إعدادات البوت.*\n\n"
+                "**-رومات #channel**\n*تحديد الروم التي سيتم اللعب فيها.*\n\n"
+                "**-خلفية [URL]**\n*تغيير خلفية العجلة بصورة من رابط.*"
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+        elif self.values[0] == "Game Mechanics":
+            embed = discord.Embed(title="⚔️ Game Mechanics", color=discord.Color.green())
+            embed.description = (
+                "**-خصائص [on/off]**\n*تفعيل أو تعطيل المهارات (حماية/ارتداد).*\n\n"
+                "**-احتمال [1-100]**\n*نسبة نجاح المهارات الدفاعية.*\n\n"
+                "**-قنبلة [on/off]**\n*تفعيل زر القنبلة لطرد عضوين.*"
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+class HelpView(discord.ui.View):
     def __init__(self):
         super().__init__()
-        self.add_item(DashboardSelect())
+        self.add_item(SettingsSelect())
 
-# --- الأوامر الأساسية ---
-@bot.command(name="help")
-async def help_cmd(ctx):
-    embed = discord.Embed(title="Game Control Panel", description="Use the menu below.", color=0x2C3E50)
-    await ctx.send(embed=embed, view=DashboardView())
+# أمر الـ Help الرئيسي
+@bot.command()
+async def help(ctx):
+    embed = discord.Embed(
+        title="Roulette Pro Control Panel",
+        description="Welcome to the advanced control panel. Choose a category from the menu below to view setup details.",
+        color=discord.Color.dark_gray()
+    )
+    await ctx.send(embed=embed, view=HelpView())
 
-@bot.command(name="نقاط")
-async def get_points(ctx, member: discord.Member = None):
-    member = member or ctx.author
-    data = load_data()
-    pts = data.get(str(member.id), {"total": 0})["total"]
-    await ctx.send(f"**{member.display_name}** has **{pts}** points.")# --- محرك الصور (Pillow) ---
-async def generate_winner_image(avatar_url, name):
-    # هنا ضع الكود الخاص بتصميمك الذي أرسلته سابقاً
-    return io.BytesIO()
+# أمر البنك (رسالة عادية)
+@bot.command()
+async def ping(ctx):
+    await ctx.send(f"🏓 Pong! Bot Latency: {round(bot.latency * 1000)}ms")
 
-# --- منطق الروليت (ضع هنا كلاسات RegistrationView و GamePlayView الأصلية الخاصة بك) ---
-# انسخ كلاس RegistrationView من ملفك القديم وألصقه هنا
-# انسخ كلاس GamePlayView @bot.command(name="روليت")
-async def start_roulette(ctx):
-    # انسخ هنا كود دالة start_roulette الخاص بك
-    # وتذكر في مكان إعلان الفائز أن تضيف هذا السطر:
-    # update_points(winner.id, 50) 
-    await ctx.send("Roulette session started.")
-
-@bot.command(name="توقف")
-async def stop_game(ctx):
-    await ctx.send("Game session terminated.")
-
-@bot.event
-async def on_ready():
-    print(f"✅ Bot is ready as {bot.user}")
-
-bot.run(os.getenv("DISCORD_TOKEN"))من ملفك القديم وألصقه هنا
+bot.run("")
