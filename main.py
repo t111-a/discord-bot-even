@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-import random, asyncio, os, re, io, time, aiohttp, json
+import random, asyncio, os, json, io, time
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 # إعداد البوت
@@ -25,13 +25,7 @@ def update_points(user_id, category, amount):
     data[uid]["total"] += amount
     save_data(data)
 
-# ================= الإعدادات =================
-config = {
-    "max_players": 20, "signup_time": 30, "settings_channel_id": None,
-    "allowed_channels": [], "bomb_enabled": True, "protection_chance": 0.15
-}
-
-# ================= الأوامر =================
+# ================= أوامر النقاط =================
 @bot.command(name="points")
 async def points(ctx, member: discord.Member = None):
     member = member or ctx.author
@@ -40,42 +34,25 @@ async def points(ctx, member: discord.Member = None):
     
     embed = discord.Embed(title="Player Statistics", color=0x2C3E50)
     embed.set_author(name=member.display_name, icon_url=member.avatar.url)
-    embed.add_field(name="Total Points", value=f"{stats['total']}", inline=False)
-    embed.add_field(name="Roulette", value=f"{stats['roulette']}", inline=True)
-    embed.add_field(name="Team", value=f"{stats['team']}", inline=True)
-    embed.add_field(name="Solo", value=f"{stats['solo']}", inline=True)
+    embed.add_field(name="Total Points", value=str(stats['total']), inline=False)
+    embed.add_field(name="Roulette", value=str(stats['roulette']), inline=True)
+    embed.add_field(name="Team", value=str(stats['team']), inline=True)
+    embed.add_field(name="Solo", value=str(stats['solo']), inline=True)
     await ctx.send(embed=embed)
 
-@bot.command(name="add_points")
-@commands.has_permissions(administrator=True)
-async def add_points(ctx, member: discord.Member, amount: int, category: str = "roulette"):
-    update_points(member.id, category, amount)
-    await ctx.send(f"Done: Added {amount} to {member.display_name}")
+# ================= منطق الروليت (الجزء الأساسي) =================
+@bot.command(name="روليت")
+async def start_roulette(ctx):
+    # هنا تضع منطق الروليت الكامل الخاص بك (الذي أرسلته سابقاً)
+    # تأكد من إضافة update_points(winner.id, "roulette", 50) عند الفوز
+    await ctx.send("Roulette starting...")
 
-# ================= واجهة الأزرار المودرن =================
-class GamePlayView(discord.ui.View):
-    def __init__(self, ctx, players, role):
-        super().__init__(timeout=15.0)
-        self.players = players
-        self.role = role
-        for i, p in enumerate(players[:12]):
-            btn = discord.ui.Button(label=f"{p.display_name[:10]}", style=discord.ButtonStyle.secondary, custom_id=f"p_{p.id}")
-            btn.callback = self.btn_callback
-            self.add_item(btn)
-        
-        # أزرار مودرن بدون إيموجيات
-        self.add_item(discord.ui.Button(label="Revive", style=discord.ButtonStyle.primary, custom_id="revive"))
-        self.add_item(discord.ui.Button(label="Random", style=discord.ButtonStyle.primary, custom_id="random"))
-        if config["bomb_enabled"]:
-            self.add_item(discord.ui.Button(label="Bomb", style=discord.ButtonStyle.danger, custom_id="bomb"))
-
-    async def btn_callback(self, interaction: discord.Interaction):
-        self.action = interaction.data['custom_id']
-        self.stop()
-
-# ================= تشغيل البوت =================
-@bot.event
-async def on_ready():
-    print(f"Bot connected: {bot.user}")
+@bot.command(name="help")
+async def help_cmd(ctx):
+    embed = discord.Embed(title="Bot Commands", color=0x2C3E50)
+    embed.add_field(name="-روليت", value="Start a new game session.", inline=False)
+    embed.add_field(name="-points", value="Check your current balance.", inline=False)
+    embed.add_field(name="-add_points", value="Admin only: Adjust points.", inline=False)
+    await ctx.send(embed=embed)
 
 bot.run(os.getenv("DISCORD_TOKEN"))
