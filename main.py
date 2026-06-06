@@ -15,236 +15,204 @@ class MyBot(commands.Bot):
 bot = MyBot()
 
 # ====================================================================
-# 💾 الذاكرة التخزينية الافتراضية للبوت
+# 💾 قاعدة البيانات والإعدادات الافتراضية للنظام
 # ====================================================================
 roulette_config = {
     "max_players": 20,
     "signup_time": 30,
+    "allowed_channel_id": None, # يتم تحديده عبر أمر -روم
     "bg_url": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3Z5N2hxZzVnd3N0N3Z4cnd6dzVwZndvOHV4azN0bnd6bWhyeXFidCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l41YtZOb9EUABnuqA/giphy.gif",
-    "embed_color": discord.Color.red()
+    "embed_color": discord.Color.dark_embed()
 }
 
-COLORS_MAP = {
-    "red": discord.Color.red(), "blue": discord.Color.blue(), "green": discord.Color.green(),
-    "gold": discord.Color.gold(), "purple": discord.Color.purple(), "black": discord.Color.dark_embed(),
-    "احمر": discord.Color.red(), "ازرق": discord.Color.blue(), "اخضر": discord.Color.green(),
-    "ذهبي": discord.Color.gold(), "بنفسجي": discord.Color.purple()
-}
-
-رسالة_منع_الاعضاء = "❌ **معصي!** الفعالية هذي مخصصة فقط لأصحاب الرتبة المحددة للعبة. 🤫"
-رسالة_الالغاء = "❌ تم إلغاء الروليت لعدم دخول العدد الكافي من اللاعبين."
-رسالة_بدء_التصفية = "🏁 **انتهى وقت التسجيل! بدأت تصفية العجلة الآن... قمطواااا!**"
-
-# دالة ذكية لتنظيف الوقت وفهم الأرقام لو العضو كتب حرف s أو ثانية
-def parse_time_input(user_input: str):
-    clean_input = re.sub(r'[^\d]', '', user_input) # يستخرج الأرقام فقط ويمسح الحروف مثل s
-    if clean_input.isdigit():
-        return int(clean_input)
-    return None
-
 # ====================================================================
-# 🛠️ أوامر التحكم التفاعلية الذكية (تسألك وأنت تجاوبها)
+# 🛠️ أوامر التعديل التفاعلية الرسمية
 # ====================================================================
+
+def parse_digits(user_input: str):
+    clean = re.sub(r'[^\d]', '', user_input)
+    return int(clean) if clean.isdigit() else None
 
 @bot.command(name="وقت")
 @commands.has_permissions(administrator=True)
-async def set_signup_time(ctx):
-    await ctx.send("⏱️ **كم ثانية تبي وقت انتظار التسجيل للروليت؟** (مثال: `20s` أو `30`)")
-    
-    def check(m):
-        return m.author == ctx.author and m.channel == ctx.channel
-
+async def set_time(ctx):
+    await ctx.send("قائمة وقت الروليت\nيرجى إرسال الوقت المطلوب بالثواني:")
+    def check(m): return m.author == ctx.author and m.channel == ctx.channel
     try:
         msg = await bot.wait_for('message', check=check, timeout=30.0)
-        seconds = parse_time_input(msg.content)
-        if seconds is None or seconds <= 0:
-            return await ctx.send("❌ القيمة غير صحيحة، يرجى كتابة أرقام فقط!")
-        
-        roulette_config["signup_time"] = seconds
-        await ctx.send(f"✅ تم تعديل وقت انتظار بدء الروليت إلى: **{seconds} ثانية** بنجاح!")
+        seconds = parse_digits(msg.content)
+        if seconds:
+            roulette_config["signup_time"] = seconds
+            await ctx.send(f"تم اعتماد وقت التسجيل: {seconds} ثانية")
     except asyncio.TimeoutError:
-        await ctx.send("⏱️ انتهى وقت الاستجابة، يرجى كتابة الأمر من جديد.")
+        pass
 
 @bot.command(name="عدد")
 @commands.has_permissions(administrator=True)
-async def set_max_players(ctx):
-    await ctx.send("👥 **كم الحد الأقصى للاعبين اللي تبيهم يدخلون العجلة؟** (اكتب الرقم في الشات)")
-    
-    def check(m):
-        return m.author == ctx.author and m.channel == ctx.channel
-
+async def set_players(ctx):
+    await ctx.send("قائمة عدد الاعضاء\nيرجى إرسال الحد الأقصى للاعبين:")
+    def check(m): return m.author == ctx.author and m.channel == ctx.channel
     try:
         msg = await bot.wait_for('message', check=check, timeout=30.0)
-        num = parse_time_input(msg.content)
-        if num is None or num <= 1:
-            return await ctx.send("❌ القيمة غير صحيحة، يرجى إدخال رقم لاعبين أكبر من 1!")
-        
-        roulette_config["max_players"] = num
-        await ctx.send(f"✅ تم تعديل حد اللاعبين الأقصى إلى: **{num} لاعب** بنجاح!")
+        num = parse_digits(msg.content)
+        if num:
+            roulette_config["max_players"] = num
+            await ctx.send(f"تم اعتماد حد اللاعبين: {num}")
     except asyncio.TimeoutError:
-        await ctx.send("⏱️ انتهى وقت الاستجابة، يرجى كتابة الأمر من جديد.")
+        pass
 
 @bot.command(name="خلفية")
 @commands.has_permissions(administrator=True)
-async def set_background(ctx):
-    await ctx.send("🖼️ **أرسل رابط الـ GIF أو الصورة اللي تبيها كخلفية للعجلة الحين:**")
-    
-    def check(m):
-        return m.author == ctx.author and m.channel == ctx.channel
-
-    try:
-        msg = await bot.wait_for('message', check=check, timeout=45.0)
-        url = msg.content.strip()
-        if not url.startswith("http"):
-            return await ctx.send("❌ الرابط غير صحيح! تأكد من إرسال رابط يبدأ بـ http")
-            
-        roulette_config["bg_url"] = url
-        await ctx.send("✅ تم تغيير خلفية العجلة المتحركة بنجاح!")
-    except asyncio.TimeoutError:
-        await ctx.send("⏱️ انتهى وقت الاستجابة، يرجى كتابة الأمر من جديد.")
-
-@bot.command(name="لون")
-@commands.has_permissions(administrator=True)
-async def set_color(ctx):
-    await ctx.send("🎨 **وش اللون اللي تبيه للإمبيد؟**\nالألوان المتوفرة: (احمر، ازرق، اخضر، ذهبي، بنفسجي، red, blue, gold)")
-    
-    def check(m):
-        return m.author == ctx.author and m.channel == ctx.channel
-
+async def set_bg(ctx):
+    await ctx.send("قائمة شكل الروليت\nيرجى إرسال رابط الصورة أو الـ GIF:")
+    def check(m): return m.author == ctx.author and m.channel == ctx.channel
     try:
         msg = await bot.wait_for('message', check=check, timeout=30.0)
-        color_name = msg.content.strip().lower()
-        if color_name in COLORS_MAP:
-            roulette_config["embed_color"] = COLORS_MAP[color_name]
-            await ctx.send(f"✅ تم تغيير لون إمبيدات الروليت إلى: **{color_name}**")
-        else:
-            await ctx.send("❌ اللون غير مدعوم! جرب كتابة ألوان أساسية مثل 'احمر' أو 'blue'.")
+        url = msg.content.strip()
+        if url.startswith("http"):
+            roulette_config["bg_url"] = url
+            await ctx.send("تم اعتماد الخلفية الجديدة بنجاح")
     except asyncio.TimeoutError:
-        await ctx.send("⏱️ انتهى وقت الاستجابة.")
+        pass
+
+@bot.command(name="روم")
+@commands.has_permissions(administrator=True)
+async def set_channel(ctx, channel: discord.TextChannel = None):
+    if channel is None:
+        roulette_config["allowed_channel_id"] = ctx.channel.id
+        await ctx.send(f"تم تخصيص هذه الروم لتشغيل الفعالية: {ctx.channel.mention}")
+    else:
+        roulette_config["allowed_channel_id"] = channel.id
+        await ctx.send(f"تم تخصيص الروم المحددة لتشغيل الفعالية: {channel.mention}")
 
 
-# 📜 أمر المساعدة لعرض الإعدادات الحالية
+# 📜 قائمة المساعدة الرسمية المتوافقة مع طلبك
 @bot.command(name="help")
 async def custom_help(ctx):
+    if ctx.content.strip() == "-help قائمة":
+        pass # لمعالجة صيغة الأمر المركب إذا لزم الأمر
+        
     embed = discord.Embed(
-        title="📋 دليل إعدادات بوت الروليت التفاعلي",
-        description="البوت صار يسألك وأنت تجاوب عليه بالشات مباشرة! هذي هي الأوامر الحالية:",
+        title="قائمة الروليت والتحكم",
+        description="الأوامر والخيارات المتاحة لإدارة نظام الفعالية:",
         color=roulette_config["embed_color"]
     )
+    embed.add_field(name="-وقت الروليت", value="لتعديل زمن انتظار دخول اللاعبين للجولة", inline=False)
+    embed.add_field(name="-لون الخلفيه", value="لتعديل المظهر العام وثيم الرسائل الصادرة", inline=False)
+    embed.add_field(name="-الاعضاء والروليت لتشغيل", value="لتحديد الحد الأقصى المسموح به للمشاركين", inline=False)
+    embed.add_field(name="-شكل الروليت", value="لتغيير الرابط النشط لعجلة الروليت المتحركة", inline=False)
+    embed.add_field(name="-روم", value="لتحديد الروم المخصصة التي يسمح ببدء اللعبة داخلها فقط", inline=False)
+    embed.add_field(name="-روليت @الرتبة", value="الأمر الأساسي لبدء الفعالية للرتبة المحددة", inline=False)
+    
+    current_chan = f"<#{roulette_config['allowed_channel_id']}>" if roulette_config["allowed_channel_id"] else "كل الرومات متاح فيها"
     embed.add_field(
-        name="⚙️ أوامر التعديل التفاعلية (للإدارة):",
-        value=(
-            "`-وقت` ➔ البوت بيطلب منك تحديد وقت التسجيل (يدعم كتابة `20s`).\n"
-            "`-عدد` ➔ البوت بيطلب منك إدخال حد اللاعبين الأقصى.\n"
-            "`-خلفية` ➔ البوت بيطلب منك رابط الصورة أو الـ GIF الجديد.\n"
-            "`-لون` ➔ البوت بيطلب منك اختيار لون ثيم اللعبة."
-        ),
-        inline=False
+        name="الإعدادات الحالية للروليت", 
+        value=f"الوقت: {roulette_config['signup_time']} ثانية | الحد الأقصى: {roulette_config['max_players']} عضو\nالروم المعتمدة: {current_chan}"
     )
-    embed.add_field(
-        name="🎮 أمر التشغيل الأساسي للفعالية:",
-        value="`-روليت @منشن_الرتبة` ➔ لفتح التسجيل للرتبة المحددة للعب.",
-        inline=False
-    )
-    embed.add_field(
-        name="📊 الإعدادات الحالية المحفوظة بالبُلُّك:",
-        value=(
-            f"👥 **الحد الأقصى الحالي:** {roulette_config['max_players']} لاعب.\n"
-            f"⏱️ **وقت الانتظار الحالي:** {roulette_config['signup_time']} ثانية.\n"
-            f"🖼️ **الخلفية المعتمدة الحالية:** [اضغط هنا لرؤية الرابط الحالي]({roulette_config['bg_url']})"
-        ),
-        inline=False
-    )
-    embed.set_image(url=roulette_config["bg_url"])
-    embed.set_footer(text="تم التطوير بأعلى تقنية تفاعلية 🚀")
     await ctx.send(embed=embed)
 
 
-# 🔘 واجهة أزرار التسجيل
+# ====================================================================
+# 🔘 واجهات الأزرار والتفاعل أثناء اللعب
+# ====================================================================
+
 class RegistrationView(discord.ui.View):
     def __init__(self, ctx):
         super().__init__(timeout=roulette_config["signup_time"])
         self.ctx = ctx
         self.players = [ctx.author]
 
-    @discord.ui.button(label="الإنضمام 📥", style=discord.ButtonStyle.green)
+    @discord.ui.button(label="الإنضمام", style=discord.ButtonStyle.green)
     async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user in self.players:
-            return await interaction.response.send_message("❌ أنت منضم للعبة بالفعل!", ephemeral=True)
+            return await interaction.response.send_message("أنت منضم للعبة بالفعل", ephemeral=True)
         if len(self.players) >= roulette_config["max_players"]:
-            return await interaction.response.send_message("❌ الروليت ممتلئة بالكامل حالياً!", ephemeral=True)
+            return await interaction.response.send_message("الروليت ممتلئة بالكامل حالياً", ephemeral=True)
             
         self.players.append(interaction.user)
-        await interaction.response.send_message(f"✅ {interaction.user.mention} انضممت للروليت بنجاح!", ephemeral=True)
+        await interaction.response.send_message(f"تم انضمام {interaction.user.mention} بنجاح", ephemeral=True)
         
         embed = interaction.message.embeds[0]
-        embed.description = f"🔥 تم فتح باب التسجيل في الروليت الحماسية!\n\n👥 **المنضمين حالياً ({len(self.players)}/{roulette_config['max_players']}):**\n" + "\n".join([f"• {p.mention}" for p in self.players])
+        embed.description = f"تم فتح باب التسجيل في الروليت\n\nالمتضمين حالياً ({len(self.players)}/{roulette_config['max_players']}):\n" + "\n".join([f"• {p.mention}" for p in self.players])
         await interaction.message.edit(embed=embed)
 
-    @discord.ui.button(label="الحقيبة 💼", style=discord.ButtonStyle.blurple)
+    @discord.ui.button(label="الحقيبة", style=discord.ButtonStyle.blurple)
     async def bag_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("🎒 حقيبتك فارغة حالياً في هذا الجيم.", ephemeral=True)
+        await interaction.response.send_message("حقيبتك فارغة حالياً", ephemeral=True)
 
-    @discord.ui.button(label="احصائيات 📊", style=discord.ButtonStyle.gray)
+    @discord.ui.button(label="الاحصائيات", style=discord.ButtonStyle.gray)
     async def stats_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("📈 نظام الإحصائيات متصل وجاهز!", ephemeral=True)
+        await interaction.response.send_message("النظام جاهز ومتصل", ephemeral=True)
 
 
-# 🔘 واجهة أزرار التصفية داخل الجيم
 class GamePlayView(discord.ui.View):
     def __init__(self, ctx, players, allowed_role):
-        super().__init__(timeout=20.0)
+        super().__init__(timeout=15.0)
         self.ctx = ctx
         self.players = players
         self.allowed_role = allowed_role
         self.voted_out = None
+        self.action_type = "normal" 
         self.create_buttons()
 
     def create_buttons(self):
-        for index, player in enumerate(self.players[:20], start=1):
-            button = discord.ui.Button(
-                label=f"{index} {player.display_name[:15]}", 
-                style=discord.ButtonStyle.secondary,
-                custom_id=str(player.id)
-            )
-            button.callback = self.button_callback
-            self.add_item(button)
+        # أزرار أسماء اللاعبين
+        for player in self.players[:12]:
+            btn = discord.ui.Button(label=player.display_name[:15], style=discord.ButtonStyle.secondary, custom_id=f"p_{player.id}")
+            btn.callback = self.button_callback
+            self.add_item(btn)
             
-        shuffle_btn = discord.ui.Button(label="عشوائي 🔀", style=discord.ButtonStyle.primary, custom_id="random_select")
-        shuffle_btn.callback = self.button_callback
-        self.add_item(shuffle_btn)
+        # أزرار الخصائص المتقدمة
+        actions = [("عشوائي", "action_random"), ("قنبلة", "action_bomb"), ("انسحاب", "action_leave")]
+        for label, c_id in actions:
+            btn = discord.ui.Button(label=label, style=discord.ButtonStyle.primary, custom_id=c_id)
+            btn.callback = self.button_callback
+            self.add_item(btn)
 
     async def button_callback(self, interaction: discord.Interaction):
         if interaction.user != self.ctx.author or self.allowed_role not in interaction.user.roles:
-            return await interaction.response.send_message("❌ الصلاحية لمشغل الفعالية الإداري فقط لاختيار الضحية من الأزرار!", ephemeral=True)
+            return await interaction.response.send_message("لا تملك الصلاحية للتحكم بأزرار اللعبة", ephemeral=True)
             
         custom_id = interaction.data['custom_id']
-        if custom_id == "random_select":
+        
+        if custom_id == "action_random":
             self.voted_out = random.choice(self.players)
-        else:
-            player_id = int(custom_id)
-            self.voted_out = next((p for p in self.players if p.id == player_id), None)
+            self.action_type = "random"
+        elif custom_id == "action_bomb":
+            self.action_type = "bomb"
+            self.voted_out = random.sample(self.players, min(2, len(self.players)))
+        elif custom_id == "action_leave":
+            self.voted_out = interaction.user
+            self.action_type = "leave"
+        elif custom_id.startswith("p_"):
+            p_id = int(custom_id.split("_")[1])
+            self.voted_out = next((p for p in self.players if p.id == p_id), None)
+            self.action_type = "normal"
             
         self.stop()
 
 
-# ==================== 🎮 أمر تشغيل اللعبة الاحترافي ====================
+# ==================== 🎮 المحرك الأساسي للعبة الروليت ====================
 
 @bot.command(name="روليت")
 async def start_roulette(ctx, role: discord.Role = None):
     if role is None:
-        return await ctx.send("❌ **خطأ في الاستخدام!** يجب تحديد منشن الرتبة المسموحة. مثال:\n`-روليت @منظم`")
+        return
 
+    # التحقق من الرتبة (إذا لم تكن لديه الصلاحية، لا يستجيب البوت إطلاقاً)
     if role not in ctx.author.roles:
-        return await ctx.send(رسالة_منع_الاعضاء)
+        return
+
+    # التحقق من الروم المخصصة
+    if roulette_config["allowed_channel_id"] and ctx.channel.id != roulette_config["allowed_channel_id"]:
+        return await ctx.send("لا يمكن تشغيل الفعالية في هذه الروم، يرجى الانتقال للروم المخصصة", delete_after=5)
 
     embed = discord.Embed(
-        title="🎯 نظام فعاليات الروليت الكبرى",
-        description=f"🔥 تم فتح باب التسجيل في الروليت الحماسية!\n\n👥 **المنضمين حالياً (1/{roulette_config['max_players']}):**\n• {ctx.author.mention}",
+        title="نظام فعاليات للروليت الكبرى",
+        description=f"تم فتح باب التسجيل في الروليت\n\nالمتضمين حالياً (1/{roulette_config['max_players']}):\n• {ctx.author.mention}",
         color=roulette_config["embed_color"]
     )
     embed.set_image(url=roulette_config["bg_url"])
-    embed.set_footer(text=f"ينتهي التسجيل تلقائياً بعد {roulette_config['signup_time']} ثانية...")
     
     view = RegistrationView(ctx)
     main_msg = await ctx.send(embed=embed, view=view)
@@ -253,18 +221,18 @@ async def start_roulette(ctx, role: discord.Role = None):
     view.stop()
     
     players = view.players
-    
     if len(players) < 2:
-        return await ctx.send(رسالة_الالغاء)
+        return await ctx.send("تم إلغاء الروليت لعدم دخول العدد الكافي من اللاعبين (المطلوب 2 على الأقل)")
 
-    await ctx.send(رسالة_بدء_التصفية)
+    await ctx.send("بدأت الجولة الآن")
     await asyncio.sleep(2)
 
     while len(players) > 1:
-        p_list = ", ".join([p.mention for p in players])
+        p_list = " | ".join([p.mention for p in players])
+        
         game_embed = discord.Embed(
-            title="🔮 عجلة الموت تدور الحين غصب عن الكل!",
-            description=f"🎯 **اللاعبين المتبقين داخل العجلة:**\n{p_list}\n\n⏱️ **لديك 20 ثانية لاختيار لاعب لطرده من الأزرار بالأسفل 👇**",
+            title="جاري سحب الضحية",
+            description=f"اللاعبين المتبقين في الجولة:\n{p_list}\n\nلديك 15 ثانية لاختيار لاعب لطردة",
             color=roulette_config["embed_color"]
         )
         game_embed.set_image(url=roulette_config["bg_url"])
@@ -272,31 +240,65 @@ async def start_roulette(ctx, role: discord.Role = None):
         game_view = GamePlayView(ctx, players, role)
         game_msg = await ctx.send(embed=game_embed, view=game_view)
         
-        await asyncio.sleep(20)
+        await asyncio.sleep(15)
         game_view.stop()
         
+        # في حال عدم الاختيار (إقصاء لعدم الاختيار / طرد تلقائي)
         if not game_view.voted_out:
             victim = random.choice(players)
-            await ctx.send(رسالة_انتهاء_وقت_الطرد)
+            players.remove(victim)
+            await ctx.send(f"تم طرد {victim.mention} لعدم الاختيار , سوف تبدأ الجولة القادمة خلال ثواني")
+            await asyncio.sleep(4)
+            continue
+            
+        # معالجة نظام القنبلة
+        if game_view.action_type == "bomb":
+            victims = game_view.voted_out
+            v_mentions = " و ".join([v.mention for v in victims])
+            for v in victims:
+                if v in players: players.remove(v)
+            await ctx.send(f"تم استعمال القنبله وطرد {v_mentions}")
+            
+        # معالجة الخيارات العادية أو العشوائية مع تطبيق (الحماية / الهجمة المرتدة / الإنعاش)
         else:
             victim = game_view.voted_out
+            chance = random.random() # تحديد الاحتمالات العشوائية للخصائص المتقدمة
             
-        players.remove(victim)
-        await ctx.send(f"💥 **بـوووووم!** العجلة وقفت في نص جبهة {victim.mention} وتم إقصاءه! 💀💥")
-        await asyncio.sleep(3)
+            if chance < 0.15 and len(players) > 2: # احتمال الحماية 15%
+                await ctx.send(f"لم يتم طرد {victim.mention} بسبب الحماية , سوف تبدأ الجولة القادمة خلال ثواني")
+            elif chance > 0.15 and chance < 0.30 and len(players) > 2: # احتمال الهجمة المرتدة 15%
+                attacker = ctx.author
+                if attacker in players: players.remove(attacker)
+                await ctx.send(f"تم طرد {attacker.mention} بسبب الهجمة المرتده من قبل {victim.mention} , سوف تبدأ الجولة القادمة خلال ثواني")
+            elif chance > 0.30 and chance < 0.40: # احتمال الإنعاش 10%
+                await ctx.send(f"{victim.mention} , تم انعاشه سيتم بدء الجولة القادمة خلال ثواني")
+            else:
+                # طرد اعتيادي أو عشوائي بناء على الأزرار
+                if victim in players: players.remove(victim)
+                if game_view.action_type == "random":
+                    if len(players) == 1:
+                        await ctx.send(f"تم طرد {victim.mention} بشكل عشوائي , الجولة القادمة هي الاخيرة من تختاره العجلة يفوز باللعبة")
+                    else:
+                        await ctx.send(f"تم طرد {victim.mention} بشكل عشوائي , سوف تبدأ الجولة القادمة خلال ثواني")
+                else:
+                    await ctx.send(f"تم طرد {victim.mention} من الجولة")
+                    
+        await asyncio.sleep(4)
         
-    winner = players[0]
-    winner_embed = discord.Embed(
-        title="🏆 الناجي الأخير والملك الأسطوري 🏆",
-        description=f"ثبت على العجلة وطير جبهات الكل وطلع الفائز القادح اليوم:\n👑 {winner.mention} 👑\n\nألف مبرووووك الفوز باللقب والهيبة! 🎉🔥",
-        color=discord.Color.gold()
-    )
-    winner_embed.set_thumbnail(url=winner.display_avatar.url)
-    await ctx.send(embed=winner_embed)
+    # إعلان الناجي الفائز النهائي
+    if len(players) == 1:
+        winner = players[0]
+        winner_embed = discord.Embed(
+            title="نهاية الجولة",
+            description=f"الفائز في الروليت:\n{winner.mention}",
+            color=discord.Color.gold()
+        )
+        winner_embed.set_image(url=winner.display_avatar.url)
+        await ctx.send(embed=winner_embed)
 
+# تجاهل الأخطاء لعدم إرسال أي ردود غير مصرح بها في الشات
 @bot.event
 async def on_command_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ هذا الأمر مخصص فقط لـ الإدارة العليا!")
+    pass
 
 bot.run(os.getenv("DISCORD_TOKEN"))
