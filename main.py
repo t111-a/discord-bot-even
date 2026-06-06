@@ -9,14 +9,14 @@ import time
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-class MyBot(commands.Bot):
-    def __init__(self):
-        super().__init__(command_prefix="-", intents=discord.Intents.all(), help_command=None)
-    
-    async def setup_hook(self):
-        await self.tree.sync()
+# إعداد الصلاحيات الكاملة للبوت لضمان قراءة الرسائل وتفعيل الأوامر
+intents = discord.Intents.default()
+intents.message_content = True
+intents.messages = True
+intents.guilds = True
+intents.members = True
 
-bot = MyBot()
+bot = commands.Bot(command_prefix="-", intents=intents, help_command=None)
 
 # ====================================================================
 # 💾 قاعدة البيانات وشجرة الإعدادات الكاملة للروليت
@@ -24,8 +24,8 @@ bot = MyBot()
 roulette_config = {
     "max_players": 20,
     "signup_time": 30,
-    "settings_channel_id": None,
-    "allowed_channels": [],
+    "settings_channel_id": None, # الأيدي الخاص بروم الإعدادات السرية
+    "allowed_channels": [],       # قائمة الأيديهات الخاصة برومات اللعب العامة
     "bg_url": "https://i.ibb.co/V9Xm8Yn/roulette-wheel.gif",
     
     "features_enabled": True,       
@@ -38,20 +38,9 @@ roulette_config = {
     "msg_normal": "تم طرد {victim} من الجولة"
 }
 
-# ====================================================================
-# ⚪ الإيموجيات المصلحة (تم تهيئتها كرموز نصية مباشرة لمنع الكراش)
-# ====================================================================
-WHITE_EMOJIS = {
-    "دخول": "📥",
-    "متجر_الخصائص": "🎭",
-    "متجر_الصور": "🖼️",
-    "الحقيبة": "🎒",
-    "الاحصائيات": "📊",
-    "انعاش": "🩺",
-    "عشوائي": "🔀",
-    "قنبلة": "💣",
-    "انسحاب": "🚪"
-}
+@bot.event
+async def on_ready():
+    print(f"✅ تم تشغيل البوت بنجاح باسم: {bot.user}")
 
 def parse_digits(user_input: str):
     clean = re.sub(r'[^\d]', '', user_input)
@@ -115,13 +104,46 @@ async def generate_winner_image(avatar_url: str, name: str) -> io.BytesIO:
     return output
 
 # ====================================================================
-# ⚙️ أوامر التحكم والبرمجة
+# ⚙️ أوامر التحكم والبرمجة مع نظام العزل الذكي للرومات
 # ====================================================================
+@bot.command(name="help")
+async def custom_help(ctx):
+    # التحقق: إذا تم تحديد روم إعدادات، لا يعمل الأمر إلا بداخلها
+    if roulette_config["settings_channel_id"] and ctx.channel.id != roulette_config["settings_channel_id"]:
+        return await ctx.send(f"❌ هذا الأمر مخصص فقط داخل روم الإعدادات: <#{roulette_config['settings_channel_id']}>", delete_after=5)
+        
+    chans = ", ".join([f"<#{c_id}>" for c_id in roulette_config["allowed_channels"]])
+    help_text = (
+        "**لوحة تحكم وبرمجة نظام الروليت الشاملة:**\n\n"
+        "`-روم_الاعدادات` -> لتثبيت روم الإدارة والتحكم الحالية (تضبط الإعدادات هنا بخصوصية)\n"
+        "`-رومات @روم` -> لتحديد رومات اللعب العامة (المنشن للشات العام اللي بيلعبون فيه)\n"
+        "`-وقت` / `-عدد` / `-خلفية` -> لتعديل الوقت، السعة، ومظهر العجلة\n"
+        "`-خصائص تشغيل/ايقاف` -> للتحكم بالقدرات الاستراتيجية والتكتيكية\n"
+        "`-احتمال النسبة` -> لتعديل حظ تفعيل الحماية والمرتدة (مثال: -احتمال 15)\n"
+        "`-قنبلة تشغيل/ايقاف` -> لتفعيل أو حظر زر طرد عضوين معاً\n"
+        "`-نسخ وضع النص` -> لإعادة صياغة وبرمجة رسائل الطرد التلقائي\n"
+        "`-بنك` -> لقياس وفحص سرعة اتصال البوت الحالية\n\n"
+        f"**الوضعية الحالية للبرمجة:**\n"
+        f"الخصائص المتقدمة: {'مفعلة' if roulette_config['features_enabled'] else 'معطلة'} | القنبلة: {'مفعلة' if roulette_config['bomb_enabled'] else 'معطلة'} | نسبة الحظ: {int(roulette_config['protection_chance']*100)}%\n"
+        f"رومات الفعاليات العامّة النشطة: {chans if chans else 'لم تحدد بعد (متاح في كل السيرفر)'}"
+    )
+    await ctx.send(help_text)
+
 @bot.command(name="روم_الاعدادات")
 @commands.has_permissions(administrator=True)
 async def set_settings_channel(ctx):
     roulette_config["settings_channel_id"] = ctx.channel.id
-    await ctx.send(f"تم اعتماد هذه الروم كمنصة حصرية لإعدادات وبرمجة الروليت كليا: {ctx.channel.mention}")
+    await ctx.send(f"🔒 تم اعتماد هذه الروم كمنصة حصرية وسريّة لإعدادات وبرمجة الروليت: {ctx.channel.mention}")
+
+@bot.command(name="رومات")
+@commands.has_permissions(administrator=True)
+async def set_channels(ctx):
+    if roulette_config["settings_channel_id"] and ctx.channel.id != roulette_config["settings_channel_id"]: 
+        return await ctx.send(f"❌ اذهب إلى روم الإعدادات لتنفيذ هذا الأمر: <#{roulette_config['settings_channel_id']}>")
+    if not ctx.message.channel_mentions: 
+        return await ctx.send("يرجى منشنة الروم العامّة اللتي ترغب باللعب فيها! مثال: `-رومات #شات-الألعاب`")
+    roulette_config["allowed_channels"] = [ch.id for ch in ctx.message.channel_mentions]
+    await ctx.send("📢 تم اعتماد وتحديد رومات اللعب العامة بنجاح.")
 
 @bot.command(name="خصائص")
 @commands.has_permissions(administrator=True)
@@ -173,14 +195,6 @@ async def ping_speed(ctx):
     bot_ping = round(bot.latency * 1000)
     await msg.edit(content=f"سرعة اتصال النظام: {bot_ping}ms | سرعة استجابة الشات: {latency}ms")
 
-@bot.command(name="رومات")
-@commands.has_permissions(administrator=True)
-async def set_channels(ctx):
-    if roulette_config["settings_channel_id"] and ctx.channel.id != roulette_config["settings_channel_id"]: return
-    if not ctx.message.channel_mentions: return await ctx.send("يرجى منشنة الرومات")
-    roulette_config["allowed_channels"] = [ch.id for ch in ctx.message.channel_mentions]
-    await ctx.send("تم اعتماد رومات الفعاليات.")
-
 @bot.command(name="وقت")
 @commands.has_permissions(administrator=True)
 async def set_time(ctx):
@@ -216,7 +230,7 @@ async def set_bg(ctx):
     except: pass
 
 # ====================================================================
-# 🔘 واجهة أزرار التسجيل (تم إصلاح الإيموجيات بشكل صحيح ومضمون)
+# 🔘 واجهة أزرار التسجيل (تم إصلاح صياغة الإيموجيات برمجياً لمنع الكراش نهائياً)
 # ====================================================================
 class RegistrationView(discord.ui.View):
     def __init__(self, ctx):
@@ -224,7 +238,7 @@ class RegistrationView(discord.ui.View):
         self.ctx = ctx
         self.players = [ctx.author]
 
-    @discord.ui.button(label="دخول", emoji=WHITE_EMOJIS["دخول"], style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="دخول", emoji=discord.PartialEmoji(name="📥"), style=discord.ButtonStyle.secondary)
     async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user in self.players: 
             return await interaction.response.send_message("أنت منضم للعبة بالفعل", ephemeral=True)
@@ -235,19 +249,19 @@ class RegistrationView(discord.ui.View):
         mentions_str = " | ".join([p.mention for p in self.players])
         await interaction.message.edit(content=f"تم فتح باب التسجيل في الروليت\n\nالمتضمين حالياً ({len(self.players)}/{roulette_config['max_players']}):\n{mentions_str}", view=self)
 
-    @discord.ui.button(label="متجر الخصائص", emoji=WHITE_EMOJIS["متجر_الخصائص"], style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="متجر الخصائص", emoji=discord.PartialEmoji(name="🎭"), style=discord.ButtonStyle.secondary)
     async def features_shop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message("🛒 متجر الخصائص مغلق مؤقتاً أثناء إعداد الجولة.", ephemeral=True)
 
-    @discord.ui.button(label="متجر الصور", emoji=WHITE_EMOJIS["متجر_الصور"], style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="متجر الصور", emoji=discord.PartialEmoji(name="🖼️"), style=discord.ButtonStyle.secondary)
     async def image_shop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message("🖼️ متجر خلفيات العجلة والصور الشخصية قيد الصيانة.", ephemeral=True)
 
-    @discord.ui.button(label="الحقيبة", emoji=WHITE_EMOJIS["الحقيبة"], style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="الحقيبة", emoji=discord.PartialEmoji(name="🎒"), style=discord.ButtonStyle.secondary)
     async def bag_button(self, interaction: discord.Interaction, button: discord.ui.Button): 
         await interaction.response.send_message("🎒 حقيبتك فارغة، لا تملك خصائص حماية أو إنعاش حالياً.", ephemeral=True)
 
-    @discord.ui.button(label="الاحصائيات", emoji=WHITE_EMOJIS["الاحصائيات"], style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="الاحصائيات", emoji=discord.PartialEmoji(name="📊"), style=discord.ButtonStyle.secondary)
     async def stats_button(self, interaction: discord.Interaction, button: discord.ui.Button): 
         await interaction.response.send_message("📊 نظام الروليت متصل ويعمل بكفاءة 100% دون أخطاء.", ephemeral=True)
 
@@ -270,20 +284,20 @@ class GamePlayView(discord.ui.View):
             btn.callback = self.button_callback
             self.add_item(btn)
             
-        btn_revive = discord.ui.Button(label="انعاش", emoji=WHITE_EMOJIS["انعاش"], style=discord.ButtonStyle.secondary, custom_id="action_revive")
+        btn_revive = discord.ui.Button(label="انعاش", emoji=discord.PartialEmoji(name="🩺"), style=discord.ButtonStyle.secondary, custom_id="action_revive")
         btn_revive.callback = self.button_callback
         self.add_item(btn_revive)
 
-        btn_rand = discord.ui.Button(label="عشوائي", emoji=WHITE_EMOJIS["عشوائي"], style=discord.ButtonStyle.secondary, custom_id="action_random")
+        btn_rand = discord.ui.Button(label="عشوائي", emoji=discord.PartialEmoji(name="🔀"), style=discord.ButtonStyle.secondary, custom_id="action_random")
         btn_rand.callback = self.button_callback
         self.add_item(btn_rand)
 
         if roulette_config["bomb_enabled"]:
-            btn_bomb = discord.ui.Button(label="قنبلة", emoji=WHITE_EMOJIS["قنبلة"], style=discord.ButtonStyle.secondary, custom_id="action_bomb")
+            btn_bomb = discord.ui.Button(label="قنبلة", emoji=discord.PartialEmoji(name="💣"), style=discord.ButtonStyle.secondary, custom_id="action_bomb")
             btn_bomb.callback = self.button_callback
             self.add_item(btn_bomb)
 
-        btn_leave = discord.ui.Button(label="انسحاب", emoji=WHITE_EMOJIS["انسحاب"], style=discord.ButtonStyle.secondary, custom_id="action_leave")
+        btn_leave = discord.ui.Button(label="انسحاب", emoji=discord.PartialEmoji(name="🚪"), style=discord.ButtonStyle.secondary, custom_id="action_leave")
         btn_leave.callback = self.button_callback
         self.add_item(btn_leave)
 
@@ -311,8 +325,13 @@ class GamePlayView(discord.ui.View):
 # ====================================================================
 @bot.command(name="روليت")
 async def start_roulette(ctx, role: discord.Role = None):
-    if role is None or role not in ctx.author.roles: return
-    if roulette_config["allowed_channels"] and ctx.channel.id not in roulette_config["allowed_channels"]: return
+    if role is None or role not in ctx.author.roles: 
+        return await ctx.send("يرجى تحديد رتبة التحكم وتأكد أنك تمتلكها! مثال: `-روليت @منظم`")
+        
+    # التحقق: اللعبة لا تبدأ إلا في الشات العام المحدد عبر أمر (-رومات)
+    if roulette_config["allowed_channels"] and ctx.channel.id not in roulette_config["allowed_channels"]: 
+        allowed_mentions = ", ".join([f"<#{c_id}>" for c_id in roulette_config["allowed_channels"]])
+        return await ctx.send(f"❌ أمر اللعب غير مسموح هنا! يرجى التوجه للشات العام المخصص للعب: {allowed_mentions}", delete_after=7)
 
     wheel_bytes = await download_image(roulette_config["bg_url"])
     init_content = f"تم فتح باب التسجيل في الروليت\n\nالمتضمين حالياً (1/{roulette_config['max_players']}):\n• {ctx.author.mention}"
@@ -378,6 +397,7 @@ async def start_roulette(ctx, role: discord.Role = None):
             await ctx.send(file=discord.File(winner_img_stream, filename="winner.png"))
 
 @bot.event
-async def on_command_error(ctx, error): pass
+async def on_command_error(ctx, error):
+    print(f"❌ خطأ داخلي: {error}")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
