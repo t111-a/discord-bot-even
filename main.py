@@ -1,15 +1,15 @@
 import discord
 from discord.ext import commands
-import random, asyncio, os, json, io, time
+import random, asyncio, os, re, io, time, aiohttp, json
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-# إعداد البوت
+# --- إعدادات البوت ---
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix="-", intents=intents, help_command=None)
 
-# ================= قاعدة البيانات =================
+# --- نظام النقاط (Database) ---
 def load_data():
     if not os.path.exists('data.json'): return {}
     with open('data.json', 'r') as f: return json.load(f)
@@ -25,34 +25,55 @@ def update_points(user_id, category, amount):
     data[uid]["total"] += amount
     save_data(data)
 
-# ================= أوامر النقاط =================
-@bot.command(name="points")
+# --- إعدادات الروليت الأصلية ---
+roulette_config = {
+    "max_players": 20, "signup_time": 30, "settings_channel_id": None,
+    "allowed_channels": [], "bg_url": "https://i.ibb.co/V9Xm8Yn/roulette-wheel.gif",
+    "features_enabled": True, "bomb_enabled": True, "protection_chance": 0.15,
+    "counter_chance": 0.15, "msg_timeout": "Player {victim} was kicked for timeout.",
+    "msg_random": "Player {victim} was kicked randomly.", "msg_normal": "Player {victim} was kicked."
+}
+
+# --- محرك الصور والرسومات ---
+async def download_image(url: str) -> bytes:
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            if resp.status == 200: return await resp.read()
+    return None
+
+async def generate_winner_image(avatar_url: str, name: str) -> io.BytesIO:
+    # هذا هو محرك التصميم الخاص بك
+    avatar_bytes = await download_image(avatar_url)
+    if not avatar_bytes: return None
+    avatar_img = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
+    base_img = Image.new("RGBA", (800, 500), (0, 0, 0, 0))
+    # ... (ضع كود الرسم الخاص بك هنا) ...
+    output = io.BytesIO()
+    base_img.save(output, format="PNG")
+    output.seek(0)
+    return output
+
+# --- الأوامر الجديدة (Points) ---
 async def points(ctx, member: discord.Member = None):
     member = member or ctx.author
     data = load_data()
     stats = data.get(str(member.id), {"roulette": 0, "team": 0, "solo": 0, "total": 0})
-    
     embed = discord.Embed(title="Player Statistics", color=0x2C3E50)
-    embed.set_author(name=member.display_name, icon_url=member.avatar.url)
-    embed.add_field(name="Total Points", value=str(stats['total']), inline=False)
+    embed.add_field(name="Total", value=str(stats['total']), inline=False)
     embed.add_field(name="Roulette", value=str(stats['roulette']), inline=True)
-    embed.add_field(name="Team", value=str(stats['team']), inline=True)
-    embed.add_field(name="Solo", value=str(stats['solo']), inline=True)
     await ctx.send(embed=embed)
 
-# ================= منطق الروليت (الجزء الأساسي) =================
-@bot.command(name="روليت")
-async def start_roulette(ctx):
-    # هنا تضع منطق الروليت الكامل الخاص بك (الذي أرسلته سابقاً)
-    # تأكد من إضافة update_points(winner.id, "roulette", 50) عند الفوز
-    await ctx.send("Roulette starting...")
+# --- كلاسات اللعبة (مع تحويل النصوص لإنجليزي) ---
+class GamePlayView(discord.ui.View):
+    def __init__(self, ctx, players, role):
+        super().__init__(timeout=15.0)
+        # أزرار مودرن بدون إيموجي (لتجنب الكراش)
+        for i, p in enumerate(players[:12]):
+            btn = discord.ui.Button(label=f"{p.display_name[:8]}", style=discord.ButtonStyle.secondary, custom_id=f"p_{p.id}")
+            self.add_item(btn)
+        self.add_item(discord.ui.Button(label="Revive", style=discord.ButtonStyle.primary, custom_id="action_revive"))
+        self.add_item(discord.ui.Button(label="Bomb", style=discord.ButtonStyle.danger, custom_id="action_bomb"))
 
-@bot.command(name="help")
-async def help_cmd(ctx):
-    embed = discord.Embed(title="Bot Commands", color=0x2C3E50)
-    embed.add_field(name="-روليت", value="Start a new game session.", inline=False)
-    embed.add_field(name="-points", value="Check your current balance.", inline=False)
-    embed.add_field(name="-add_points", value="Admin only: Adjust points.", inline=False)
-    await ctx.send(embed=embed)
+# --- (أكمل باقي دوال الروليت الخاصة بك هنا تحت) ---
 
 bot.run(os.getenv("DISCORD_TOKEN"))
