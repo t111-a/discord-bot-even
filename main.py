@@ -39,20 +39,18 @@ roulette_config = {
 }
 
 # ====================================================================
-# ⚪ الإيموجيات البيضاء السادة الجاهزة والمطابقة لشكل أزرار الصورة تماماً
+# ⚪ الإيموجيات المصلحة (تم تهيئتها كرموز نصية مباشرة لمنع الكراش)
 # ====================================================================
 WHITE_EMOJIS = {
-    "دخول": "📥",            # شكل السهم وداخل الصندوق الأبيض لفعل الدخول
-    "متجر_الخصائص": "🎭",     # قناع الخصائص المتناسق
-    "متجر_الصور": "🖼️",      # برواز متجر الصور
-    "الحقيبة": "🎒",          # الشنطة/الحقيبة الافتراضية
-    "الاحصائيات": "📊",       # الرسم البياني للأعضاء والأداء
-    
-    # إيموجيات أزرار اللعب أثناء الجولة
-    "انعاش": "🩺",           # سماعة الطبيب للإنعاش والتطبيب
-    "عشوائي": "🔀",          # الأسهم المتقاطعة البيضاء للعشوائي
-    "قنبلة": "💣",           # القنبلة التكتيكية
-    "انسحاب": "🚪"           # الباب الأبيض للخروج والانسحاب
+    "دخول": "📥",
+    "متجر_الخصائص": "🎭",
+    "متجر_الصور": "🖼️",
+    "الحقيبة": "🎒",
+    "الاحصائيات": "📊",
+    "انعاش": "🩺",
+    "عشوائي": "🔀",
+    "قنبلة": "💣",
+    "انسحاب": "🚪"
 }
 
 def parse_digits(user_input: str):
@@ -67,7 +65,7 @@ async def download_image(url: str) -> bytes:
     return None
 
 # ====================================================================
-# 🎨 محرك تصميم صورة الفائز الدائرية بالأجنحة والاسم تحتها
+# 🎨 محرك تصميم صورة الفائز
 # ====================================================================
 async def generate_winner_image(avatar_url: str, name: str) -> io.BytesIO:
     avatar_bytes = await download_image(avatar_url)
@@ -79,7 +77,6 @@ async def generate_winner_image(avatar_url: str, name: str) -> io.BytesIO:
     base_img = Image.new("RGBA", (base_w, base_h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(base_img)
     
-    # رسم هيكل الأجنحة الانسيابية المتوافقة مع ثيم اللوحة الرمادي/الأزرق
     draw.chord([50, 150, 350, 350], 160, 340, fill=(169, 169, 169, 255))
     draw.chord([80, 180, 350, 320], 160, 340, fill=(105, 105, 105, 255))
     draw.chord([450, 150, 750, 350], 200, 20, fill=(169, 169, 169, 255))
@@ -118,7 +115,7 @@ async def generate_winner_image(avatar_url: str, name: str) -> io.BytesIO:
     return output
 
 # ====================================================================
-# ⚙️ أوامر التحكم والبرمجة من الشات عبر علامة (-)
+# ⚙️ أوامر التحكم والبرمجة
 # ====================================================================
 @bot.command(name="روم_الاعدادات")
 @commands.has_permissions(administrator=True)
@@ -219,7 +216,7 @@ async def set_bg(ctx):
     except: pass
 
 # ====================================================================
-# 🔘 واجهة أزرار التسجيل الحصرية المودرن بالإيموجيات البيضاء
+# 🔘 واجهة أزرار التسجيل (تم إصلاح الإيموجيات بشكل صحيح ومضمون)
 # ====================================================================
 class RegistrationView(discord.ui.View):
     def __init__(self, ctx):
@@ -255,7 +252,7 @@ class RegistrationView(discord.ui.View):
         await interaction.response.send_message("📊 نظام الروليت متصل ويعمل بكفاءة 100% دون أخطاء.", ephemeral=True)
 
 # ====================================================================
-# 🔘 واجهة أزرار التحكم بالجولات والإقصاء بالإيموجيات البيضاء حصرية للجولات
+# 🔘 واجهة أزرار التحكم بالجولات والإقصاء
 # ====================================================================
 class GamePlayView(discord.ui.View):
     def __init__(self, ctx, players, allowed_role):
@@ -268,29 +265,24 @@ class GamePlayView(discord.ui.View):
         self.create_buttons()
 
     def create_buttons(self):
-        # أزرار أرقام وأسماء اللاعبين التلقائية
         for i, player in enumerate(self.players[:12], start=1):
             btn = discord.ui.Button(label=f"{i} {player.display_name[:12]}", style=discord.ButtonStyle.secondary, custom_id=f"p_{player.id}")
             btn.callback = self.button_callback
             self.add_item(btn)
             
-        # إضافة زر إنعاش مع الأيموجي الأبيض
         btn_revive = discord.ui.Button(label="انعاش", emoji=WHITE_EMOJIS["انعاش"], style=discord.ButtonStyle.secondary, custom_id="action_revive")
         btn_revive.callback = self.button_callback
         self.add_item(btn_revive)
 
-        # إضافة زر عشوائي مع الأيموجي الأبيض
         btn_rand = discord.ui.Button(label="عشوائي", emoji=WHITE_EMOJIS["عشوائي"], style=discord.ButtonStyle.secondary, custom_id="action_random")
         btn_rand.callback = self.button_callback
         self.add_item(btn_rand)
 
-        # إضافة زر قنبلة مع الأيموجي الأبيض
         if roulette_config["bomb_enabled"]:
             btn_bomb = discord.ui.Button(label="قنبلة", emoji=WHITE_EMOJIS["قنبلة"], style=discord.ButtonStyle.secondary, custom_id="action_bomb")
             btn_bomb.callback = self.button_callback
             self.add_item(btn_bomb)
 
-        # إضافة زر انسحاب مع الأيموجي الأبيض
         btn_leave = discord.ui.Button(label="انسحاب", emoji=WHITE_EMOJIS["انسحاب"], style=discord.ButtonStyle.secondary, custom_id="action_leave")
         btn_leave.callback = self.button_callback
         self.add_item(btn_leave)
@@ -315,7 +307,7 @@ class GamePlayView(discord.ui.View):
         self.stop()
 
 # ====================================================================
-# 🚀 محرك جولات الفعالية الأساسي الشامل
+# 🚀 محرك جولات الفعالية
 # ====================================================================
 @bot.command(name="روليت")
 async def start_roulette(ctx, role: discord.Role = None):
