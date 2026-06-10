@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import random
 import asyncio
+import os
 
 # إعدادات البوت
 intents = discord.Intents.default()
@@ -15,11 +16,11 @@ class MainView(discord.ui.View):
 
     @discord.ui.button(label="🎡 روليت", style=discord.ButtonStyle.primary, custom_id="roulette_btn")
     async def roulette_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("🎡 **جاري بدء جولة الروليت... اضغط 'دخول' للانضمام!**", ephemeral=False)
+        await interaction.response.send_message("🎡 **جاري بدء جولة الروليت... اكتب `-روليت` في الشات للبدء!**", ephemeral=False)
 
     @discord.ui.button(label="🎒 الحقيبة", style=discord.ButtonStyle.secondary, custom_id="bag_btn")
     async def bag_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("🎒 **حقيبتك:** لا توجد خصائص حالياً. اجمع النقاط من اللعب لتشتري!", ephemeral=True)
+        await interaction.response.send_message("🎒 **حقيبتك:** لا توجد خصائص حالياً.", ephemeral=True)
 
     @discord.ui.button(label="📊 الإحصائيات", style=discord.ButtonStyle.success, custom_id="stats_btn")
     async def stats_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -43,7 +44,7 @@ class RouletteGameView(discord.ui.View):
     async def join_game(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user not in self.players:
             self.players.append(interaction.user)
-            await interaction.response.send_message(f"✅ {interaction.user.name} انضم! (العدد: {len(self.players)})", ephemeral=False)
+            await interaction.response.send_message(f"✅ {interaction.user.name} انضم للجولة!", ephemeral=False)
         else:
             await interaction.response.send_message("⚠️ أنت مشترك بالفعل!", ephemeral=True)
 
@@ -66,4 +67,6 @@ async def setup(ctx):
     embed = discord.Embed(title="🎮 مركز الألعاب والتحكم", description="أهلاً بك، اختر اللعبة أو تفقد حقيبتك من الأزرار:", color=discord.Color.blue())
     await ctx.send(embed=embed, view=MainView())
 
-bot.run(os.environ["DISCORD_TOKEN"])
+# تشغيل البوت
+if __name__ == "__main__":
+    bot.run(os.environ["DISCORD_TOKEN"])
