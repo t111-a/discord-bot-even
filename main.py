@@ -2,69 +2,69 @@ import discord
 from discord.ext import commands
 import sqlite3
 import asyncio
+import os
 import random
-import requests
-
-# --- الإعدادات الأساسية ---
-# ضع الآيدي الخاص بك هنا (أول واحد في القائمة)
-DEVELOPERS = [123456789012345678] 
 
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix="-", intents=bot_intents, help_command=None)
+bot = commands.Bot(command_prefix="-", intents=intents, help_command=None)
 
-# قاعدة بيانات للمبرمجين والنقاط
-conn = sqlite3.connect('bot_data.db', check_same_thread=False)
-c = conn.cursor()
-c.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, points INTEGER)''')
-c.execute('''CREATE TABLE IF NOT EXISTS devs (id INTEGER PRIMARY KEY)''')
-conn.commit()
+# إعدادات النظام
+config = {
+    "wheel_url": "https://media.giphy.com/media/3o7TKMGpxxHOGTdzJC/giphy.gif",
+    "time": 30,
+    "max_players": 10
+}
 
-# --- وظيفة للتحقق من المبرمج ---
-def is_dev(ctx):
-    return ctx.author.id in DEVELOPERS or c.execute("SELECT id FROM devs WHERE id=?", (ctx.author.id,)).fetchone()
-
-# --- أوامر التحكم في البوت (التفاعلية) ---
+# --- 1. التحكم في هوية البوت (الأدمن فقط) ---
 @bot.command()
-async def setbot(ctx, action: str):
-    if not is_dev(ctx): return await ctx.send("❌ هذا النظام للمبرمجين فقط!")
-    
-    if action == "avatar":
-        await ctx.send("📸 أرسل الصورة أو الرابط:")
-        msg = await bot.wait_for("message", check=lambda m: m.author == ctx.author)
-        url = msg.attachments[0].url if msg.attachments else msg.content
-        await bot.user.edit(avatar=requests.get(url).content)
-        await ctx.send("✅ تم تحديث الصورة!")
-        
-    elif action == "name":
-        await ctx.send("✍️ أرسل الاسم الجديد:")
-        msg = await bot.wait_for("message", check=lambda m: m.author == ctx.author)
-        await bot.user.edit(username=msg.content)
-        await ctx.send("✅ تم تحديث الاسم!")
+@commands.has_permissions(administrator=True)
+async def setbot(ctx, setting: str, *, value: str):
+    """
+    مثال: -setbot name البوت_الجديد
+    مثال: -setbot avatar [رابط_الصورة]
+    """
+    try:
+        if setting == "name":
+            await bot.user.edit(username=value)
+            await ctx.send(f"تم تغيير الاسم إلى {value}")
+        elif setting == "avatar":
+            import requests
+            img = requests.get(value).content
+            await bot.user.edit(avatar=img)
+            await ctx.send("تم تغيير صورة البوت")
+        elif setting == "config": # لتعديل إعدادات الروليت
+            key, val = value.split(" ")
+            config[key] = int(val) if val.isdigit() else val
+            await ctx.send(f"تم تحديث {key} إلى {val}")
+    except Exception as e:
+        await ctx.send(f"خطأ: {e}")
 
-    elif action == "dev":
-        await ctx.send("👤 أرسل منشن (Mention) للشخص الذي تريد إضافته كمبرمج:")
-        msg = await bot.wait_for("message", check=lambda m: m.author == ctx.author)
-        user = msg.mentions[0]
-        c.execute("INSERT INTO devs VALUES (?)", (user.id,))
-        conn.commit()
-        await ctx.send(f"✅ تم إضافة {user.name} كمبرمج معك!")
+# --- 2. الأوامر العامة المحمية (الكل يشوف، الأدمن ينفذ) ---
+@bot.command()
+async def give(ctx, member: discord.Member, amount: int):
+    if ctx.author.id != [ID_حقك_هنا]: # ضع رقم آيديك هنا للحماية
+        return await ctx.send("هذا الأمر للمدير فقط!")
+    # ... (كود التوزيع)
+    await ctx.send(f"تم توزيع {amount} لـ {member.name}")
 
-# --- الروليت العام ---
+# --- 3. نظام الروليت (العام) ---
 @bot.command()
 async def roulette(ctx):
-    # (نفس نظام الإقصاء السابق، لكن الرسائل عامة)
-    # أضفت لك كل الأوامر اللي طلبتها بالداخل...
-    pass
+    # (نفس نظام الإقصاء السابق، لكن الرسائل عامة للكل)
+    pass 
 
-# --- قائمة الأوامر الشاملة ---
+# --- 4. الـ Help (الأساسي اللي طلبته) ---
 @bot.command()
 async def help(ctx):
     text = (
-        "اوامر البوت:\n\n"
-        "🎮 [الالعاب]\n-roulette : بدء الجولة\n-points : رصيدك\n-transfer [شخص] [مبلغ] : تحويل\n\n"
-        "⚙️ [التحكم للمبرمجين]\n-setbot avatar : تغيير صورة\n-setbot name : تغيير الاسم\n-setbot dev : اضافة مبرمج جديد\n-give [شخص] [مبلغ] : توزيع نقاط"
+        "قائمة الاوامر:\n\n"
+        "-roulette : بدء الجولة\n"
+        "-points : عرض رصيدك\n"
+        "-transfer [عضو] [مبلغ] : تحويل نقاط\n"
+        "-give [عضو] [مبلغ] : توزيع (خاص للمدير)\n"
+        "-setbot [name/avatar/config] [القيمة] : التحكم في هوية البوت (خاص للمدير)"
     )
     await ctx.send(text)
 
-bot.run("YOUR_TOKEN_HERE")
+bot.run(os.environ["DISCORD_TOKEN"])
