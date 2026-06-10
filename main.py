@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+import sqlite3
 import random
 import asyncio
 import os
@@ -9,64 +10,87 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="-", intents=intents, help_command=None)
 
-# 1. القائمة التفاعلية للألعاب
-class MainView(discord.ui.View):
-    def __init__(self):
+# --- إعداد قاعدة البيانات ---
+def init_db():
+    conn = sqlite3.connect('game_data.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, points INTEGER)''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# --- وظائف النقاط ---
+def get_points(user_id):
+    conn = sqlite3.connect('game_data.db')
+    c = conn.cursor()
+    c.execute("SELECT points FROM users WHERE id=?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else 0
+
+def add_points(user_id, amount):
+    conn = sqlite3.connect('game_data.db')
+    c = conn.cursor()
+    current = get_points(user_id)
+    c.execute("INSERT OR REPLACE INTO users (id, points) VALUES (?, ?)", (user_id, current + amount))
+    conn.commit()
+    conn.close()
+
+# --- الروليت ---
+class RouletteView(discord.ui.View):
+    def __init__(self, players):
         super().__init__(timeout=None)
+        self.players = players
 
-    @discord.ui.button(label="🎡 روليت", style=discord.ButtonStyle.primary, custom_id="roulette_btn")
-    async def roulette_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("🎡 **جاري بدء جولة الروليت... اكتب `-روليت` في الشات للبدء!**", ephemeral=False)
-
-    @discord.ui.button(label="🎒 الحقيبة", style=discord.ButtonStyle.secondary, custom_id="bag_btn")
-    async def bag_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("🎒 **حقيبتك:** لا توجد خصائص حالياً.", ephemeral=True)
-
-    @discord.ui.button(label="📊 الإحصائيات", style=discord.ButtonStyle.success, custom_id="stats_btn")
-    async def stats_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("📊 **إحصائياتك:** فوز: 0 | خسارة: 0 | نقاط: 100", ephemeral=True)
-
-# 2. أمر الألعاب (القائمة الشاملة)
-@bot.command()
-async def ألعاب(ctx):
-    embed = discord.Embed(title="🎮 قائمة الأوامر الاحترافية", description="اختر ما تريد من القائمة أدناه:", color=discord.Color.dark_purple())
-    embed.add_field(name="الألعاب الجماعية", value="روليت، هايد، لغم، مافيا، نرد، كراسي", inline=False)
-    embed.add_field(name="الألعاب الفردية", value="اسرع، فكك، عكس، حساب، جماد", inline=False)
-    await ctx.send(embed=embed)
-
-# 3. نظام الروليت الاحترافي
-class RouletteGameView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.players = []
-
-    @discord.ui.button(label="دخول الجولة", style=discord.ButtonStyle.danger, custom_id="join_game")
-    async def join_game(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="انضمام", style=discord.ButtonStyle.green)
+    async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user not in self.players:
             self.players.append(interaction.user)
-            await interaction.response.send_message(f"✅ {interaction.user.name} انضم للجولة!", ephemeral=False)
+            await interaction.response.send_message(f"✅ انضم {interaction.user.name}", ephemeral=True)
         else:
-            await interaction.response.send_message("⚠️ أنت مشترك بالفعل!", ephemeral=True)
+            await interaction.response.send_message("⚠️ أنت مشترك!", ephemeral=True)
 
 @bot.command()
 async def روليت(ctx):
-    view = RouletteGameView()
-    embed = discord.Embed(title="🎡 جولة الروليت", description="الانتظار لمدة 20 ثانية لدخول اللاعبين...", color=discord.Color.red())
+    players = []
+    view = RouletteView(players)
+    embed = discord.Embed(title="🎡 روليت - العجلة الكبرى", description="نظام احترافي | بانتظار 3 لاعبين للبدء...", color=discord.Color.red())
+    embed.add_field(name="اللاعبين", value="0", inline=True)
     msg = await ctx.send(embed=embed, view=view)
-    await asyncio.sleep(20)
-    if len(view.players) < 1:
-        await ctx.send("❌ تم إلغاء الجولة لعدم وجود لاعبين.")
+    await asyncio.sleep(30)
+    
+    if len(players) < 3:
+        await ctx.send("❌ تم الإلغاء، العدد أقل من 3 لاعبين.")
     else:
-        winner = random.choice(view.players)
-        await ctx.send(f"🎉 **الفائز في الروليت هو:** {winner.mention}!")
+        await ctx.send(f"🔥 **بدأت الجولة!** المشاركون: {len(players)}")
+        winner = random.choice(players)
+        add_points(winner.id, 1)
+        await ctx.send(f"🎉 الفائز: {winner.mention} (حصل على 1 نقطة)")
 
-# 4. أمر الـ Setup (اللوحة)
+# --- أوامر النظام والتحكم ---
+@bot.command()
+async def هيلب(ctx):
+    embed = discord.Embed(title="🎮 مركز الأوامر الاحترافي", color=discord.Color.dark_purple())
+    embed.add_field(name="🎡 الألعاب", value="`-روليت` - بدء جولة جديدة", inline=False)
+    embed.add_field(name="💰 النظام المالي", value="`-نقاطي` - عرض رصيدك\n`-توزيع` - توزيع نقاط (للمشرفين)", inline=False)
+    embed.add_field(name="⚙️ التحكم", value="`-setup` - إظهار اللوحة", inline=False)
+    await ctx.send(embed=embed)
+
+@bot.command()
+async def نقاطي(ctx):
+    p = get_points(ctx.author.id)
+    await ctx.send(f"💰 رصيدك الحالي: {p} نقطة")
+
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def setup(ctx):
-    embed = discord.Embed(title="🎮 مركز الألعاب والتحكم", description="أهلاً بك، اختر اللعبة أو تفقد حقيبتك من الأزرار:", color=discord.Color.blue())
-    await ctx.send(embed=embed, view=MainView())
+async def توزيع(ctx, member: discord.Member, amount: int):
+    add_points(member.id, amount)
+    await ctx.send(f"✅ تم إضافة {amount} نقطة لـ {member.name}")
 
-# تشغيل البوت
-if __name__ == "__main__":
-    bot.run(os.environ["DISCORD_TOKEN"])
+@bot.command()
+async def setup(ctx):
+    embed = discord.Embed(title="🎮 لوحة التحكم", description="استخدم الأزرار:", color=discord.Color.blue())
+    await ctx.send(embed=embed)
+
+bot.run(os.environ["DISCORD_TOKEN"])
