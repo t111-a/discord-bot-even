@@ -1,56 +1,67 @@
 import discord
 from discord.ext import commands
+import os
 
 bot = commands.Bot(command_prefix="", intents=discord.Intents.all())
 
-class MusicView(discord.ui.View):
+# --- نظام الـ Modal (لإدخال البيانات مثل المنشن أو الأسماء) ---
+class InputModal(discord.ui.Modal, title='تعديل البيانات'):
+    answer = discord.ui.TextInput(label='اكتب هنا:', style=discord.TextStyle.short, required=True)
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f"✅ تم التنفيذ بنجاح: {self.answer}", ephemeral=True)
+
+# --- القائمة الرئيسية ---
+class MainSettingsView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-
-    # القائمة (Select Menu)
-    @discord.ui.select(placeholder="اختر خياراً...", options=[
-        discord.SelectOption(label="تثبيت الأغنية", value="pin"),
-        discord.SelectOption(label="إلغاء التشغيل", value="stop"),
-        discord.SelectOption(label="تحديث", value="refresh"),
-        discord.SelectOption(label="إعادة تعيين", value="reset")
+    
+    @discord.ui.select(placeholder="اختر قائمة الإعدادات...", options=[
+        discord.SelectOption(label="إعدادات البوت", value="bot", emoji="🤖"),
+        discord.SelectOption(label="إعدادات الإدارة", value="admin", emoji="🛡️"),
+        discord.SelectOption(label="إعدادات عامة", value="general", emoji="⚙️")
     ])
-    async def select_callback(self, interaction: discord.Interaction, select: discord.ui.Select):
-        await interaction.response.send_message(f"تم اختيار: {select.values[0]}", ephemeral=True)
+    async def select(self, interaction: discord.Interaction, select: discord.ui.Select):
+        if select.values[0] == "bot":
+            await interaction.response.edit_message(embed=discord.Embed(title="إعدادات البوت", description="تغيير الخصائص الأساسية:"), view=BotSettingsView())
+        elif select.values[0] == "admin":
+            await interaction.response.edit_message(embed=discord.Embed(title="إعدادات الإدارة", description="إضافة/إزالة مسؤولين:"), view=AdminSettingsView())
+        elif select.values[0] == "general":
+            await interaction.response.edit_message(embed=discord.Embed(title="إعدادات عامة", description="تحكم بالرومات والمنصة:"), view=GeneralSettingsView())
 
-    # الأزرار (Buttons) تحت القائمة
+# --- إعدادات البوت ---
+class BotSettingsView(discord.ui.View):
+    def __init__(self): super().__init__(timeout=None)
+    @discord.ui.button(label="تثبيت البوت", style=discord.ButtonStyle.secondary)
+    async def pin(self, interaction, button): await interaction.response.send_message("تم التثبيت!", ephemeral=True)
     @discord.ui.button(label="رجوع", style=discord.ButtonStyle.danger)
-    async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("تم الرجوع.", ephemeral=True)
+    async def back(self, interaction, button): await interaction.response.edit_message(embed=discord.Embed(title="الإعدادات", description="الرئيسية"), view=MainSettingsView())
 
+# --- إعدادات الإدارة (المسؤولين) ---
+class AdminSettingsView(discord.ui.View):
+    def __init__(self): super().__init__(timeout=None)
+    @discord.ui.button(label="إضافة مسؤول", style=discord.ButtonStyle.primary)
+    async def add_admin(self, interaction, button): await interaction.response.send_modal(InputModal())
+    @discord.ui.button(label="رجوع", style=discord.ButtonStyle.danger)
+    async def back(self, interaction, button): await interaction.response.edit_message(embed=discord.Embed(title="الإعدادات", description="الرئيسية"), view=MainSettingsView())
+
+# --- إعدادات عامة ---
+class GeneralSettingsView(discord.ui.View):
+    def __init__(self): super().__init__(timeout=None)
+    @discord.ui.button(label="رجوع", style=discord.ButtonStyle.danger)
+    async def back(self, interaction, button): await interaction.response.edit_message(embed=discord.Embed(title="الإعدادات", description="الرئيسية"), view=MainSettingsView())
+
+# --- الأحداث والأوامر ---
 @bot.event
 async def on_message(message):
     if message.author.bot: return
     
-    # أوامر البوت (بدون بادئة)
-    content = message.content.lower()
-    
-    # 1. التشغيل (ش أو p)
-    if content.startswith(('ش ', 'p ')):
-        song = content.split(' ', 1)[1]
-        await message.channel.send(f"🎵 جاري تشغيل: {song}")
-        
-    # 2. الوقف
-    if content == "وقف":
-        if message.guild.voice_client:
-            await message.guild.voice_client.disconnect()
-            await message.channel.send("🛑 تم الإيقاف.")
+    # 1. نظام الـ Settings (المنشن)
+    if "settings" in message.content.lower() and bot.user.mentioned_in(message):
+        await message.reply(embed=discord.Embed(title="الإعدادات", description="اختر من القائمة:"), view=MainSettingsView())
 
-    # 3. الـ Settings (بالمنشن)
-    if "settings" in content and bot.user.mentioned_in(message):
-        embed = discord.Embed(
-            title="الإعدادات والمشغل",
-            description="اختر إعداداً من القائمة أو استخدم الأزرار السريعة.",
-            color=0x2f3136
-        )
-        await message.channel.send(embed=embed, view=MusicView())
+    # 2. التشغيل (ش)
+    if message.content.startswith(('ش ', 'p ')):
+        song = message.content.split(' ', 1)[1]
+        await message.reply(f"🎵 جاري تشغيل: {song}")
 
-    # 4. الـ Help
-    if content == "help":
-        await message.channel.send("الأوامر: \nش [اسم الأغنية] \np [اسم الأغنية] \nوقف \n@البوت settings")
-import os
 bot.run(os.environ['DISCORD_TOKEN'])
