@@ -53,4 +53,4 @@ async def on_message(message):
     if content == "help":
         await message.channel.send("الأوامر: \nش [اسم الأغنية] \np [اسم الأغنية] \nوقف \n@البوت settings")
 
-bot.run('YOUR_TOKEN_HERE')
+bot.run('')
